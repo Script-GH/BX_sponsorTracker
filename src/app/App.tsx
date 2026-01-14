@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SponsorList } from '@/app/components/sponsor-list';
 import { SponsorFormModal } from '@/app/components/sponsor-form-modal';
 import { Search, Plus } from 'lucide-react';
@@ -24,23 +24,60 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null);
 
-  const handleAddSponsor = (sponsor: Omit<Sponsor, 'id'>) => {
-    const newSponsor: Sponsor = {
-      ...sponsor,
-      id: Date.now().toString()
-    };
-    setSponsors([...sponsors, newSponsor]);
-    setIsModalOpen(false);
+  useEffect(() => {
+    fetch('/api/sponsors')
+      .then(res => res.json())
+      .then(data => setSponsors(data))
+      .catch(err => console.error('Error fetching sponsors:', err));
+  }, []);
+
+  const handleAddSponsor = async (sponsor: Omit<Sponsor, 'id'>) => {
+    try {
+      const response = await fetch('/api/sponsors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sponsor),
+      });
+      if (!response.ok) throw new Error('Failed to add sponsor');
+      const newSponsor = await response.json();
+      setSponsors([...sponsors, newSponsor]);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error adding sponsor:', error);
+      alert('Failed to add sponsor');
+    }
   };
 
-  const handleEditSponsor = (sponsor: Sponsor) => {
-    setSponsors(sponsors.map(s => s.id === sponsor.id ? sponsor : s));
-    setIsModalOpen(false);
-    setEditingSponsor(null);
+  const handleEditSponsor = async (sponsor: Sponsor) => {
+    try {
+      const response = await fetch(`/api/sponsors/${sponsor.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sponsor),
+      });
+      if (!response.ok) throw new Error('Failed to update sponsor');
+      const updatedSponsor = await response.json();
+      setSponsors(sponsors.map(s => s.id === sponsor.id ? updatedSponsor : s));
+      setIsModalOpen(false);
+      setEditingSponsor(null);
+    } catch (error) {
+      console.error('Error updating sponsor:', error);
+      alert('Failed to update sponsor');
+    }
   };
 
-  const handleDeleteSponsor = (id: string) => {
-    setSponsors(sponsors.filter(s => s.id !== id));
+  const handleDeleteSponsor = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this sponsor?')) return;
+    try {
+      const response = await fetch(`/api/sponsors/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete sponsor');
+      setSponsors(sponsors.filter(s => s.id !== id));
+    } catch (error) {
+      console.error('Error deleting sponsor:', error);
+      alert('Failed to delete sponsor');
+    }
   };
 
   const openEditModal = (sponsor: Sponsor) => {
