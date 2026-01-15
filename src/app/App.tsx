@@ -8,6 +8,7 @@ export type SponsorStatus = 'In Progress' | 'Contacted' | 'Completed' | 'Follow-
 export interface Sponsor {
   id: string;
   companyName: string;
+  sector: string;
   companyEmail: string;
   contactPerson: string;
   phoneNumber: string;

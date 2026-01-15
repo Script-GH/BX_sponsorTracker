@@ -24,6 +24,7 @@ mongoose.connect(process.env.MONGODB_URI)
 // Sponsor Schema
 const sponsorSchema = new mongoose.Schema({
     companyName: String,
+    sector: String,
     companyEmail: String,
     contactPerson: String,
     phoneNumber: String,

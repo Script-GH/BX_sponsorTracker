@@ -12,6 +12,7 @@ interface SponsorFormModalProps {
 export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: SponsorFormModalProps) {
   const [formData, setFormData] = useState({
     companyName: '',
+    sector: '',
     companyEmail: '',
     contactPerson: '',
     phoneNumber: '',
@@ -24,6 +25,7 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
     if (sponsor) {
       setFormData({
         companyName: sponsor.companyName,
+        sector: sponsor.sector || '',
         companyEmail: sponsor.companyEmail,
         contactPerson: sponsor.contactPerson,
         phoneNumber: sponsor.phoneNumber,
@@ -34,6 +36,7 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
     } else {
       setFormData({
         companyName: '',
+        sector: '',
         companyEmail: '',
         contactPerson: '',
         phoneNumber: '',
@@ -75,7 +78,7 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Company Name */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-1">
               <label htmlFor="companyName" className="block text-sm font-medium text-slate-700 mb-1">
                 Company Name <span className="text-red-500">*</span>
               </label>
@@ -87,6 +90,21 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
                 onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="e.g., Tech Innovations Inc"
+              />
+            </div>
+
+            {/* Sector/Domain */}
+            <div className="md:col-span-1">
+              <label htmlFor="sector" className="block text-sm font-medium text-slate-700 mb-1">
+                Sector / Domain
+              </label>
+              <input
+                type="text"
+                id="sector"
+                value={formData.sector}
+                onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., Fintech, AI, Healthcare"
               />
             </div>
 

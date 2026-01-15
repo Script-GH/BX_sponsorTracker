@@ -50,6 +50,9 @@ export function SponsorList({ sponsors, onEdit, onDelete }: SponsorListProps) {
                 Company
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+                Sector
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Contact
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
@@ -57,6 +60,9 @@ export function SponsorList({ sponsors, onEdit, onDelete }: SponsorListProps) {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+                Notes
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Actions
@@ -76,6 +82,11 @@ export function SponsorList({ sponsors, onEdit, onDelete }: SponsorListProps) {
                   </div>
                 </td>
                 <td className="px-6 py-4">
+                  <span className="text-sm text-slate-700 group-hover:text-slate-900 transition-colors">
+                    {sponsor.sector || '-'}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
                   <div className="flex flex-col">
                     <span className="text-sm text-slate-900">{sponsor.contactPerson}</span>
                     <div className="flex items-center gap-1 mt-1">
@@ -92,11 +103,15 @@ export function SponsorList({ sponsors, onEdit, onDelete }: SponsorListProps) {
                 </td>
                 <td className="px-6 py-4">
                   <StatusBadge status={sponsor.status} />
-                  {sponsor.notes && (
-                    <div className="flex items-start gap-1 mt-2 text-xs text-slate-600">
+                </td>
+                <td className="px-6 py-4">
+                  {sponsor.notes ? (
+                    <div className="flex items-start gap-1 text-xs text-slate-600 max-w-[200px]">
                       <FileText className="w-3 h-3 text-slate-400 mt-0.5 flex-shrink-0" />
                       <span className="line-clamp-2">{sponsor.notes}</span>
                     </div>
+                  ) : (
+                    <span className="text-xs text-slate-400">-</span>
                   )}
                 </td>
                 <td className="px-6 py-4">
