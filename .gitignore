@@ -85,3 +85,7 @@ typings/
 # Dist
 dist/
 dist-ssr/
+
+# MongoDB Data
+.mongo-data
+.mongo-log*

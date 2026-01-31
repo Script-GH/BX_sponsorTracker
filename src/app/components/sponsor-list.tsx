@@ -1,10 +1,11 @@
 import { Sponsor, SponsorStatus } from '@/app/App';
-import { Mail, Phone, MapPin, Edit2, Trash2, FileText } from 'lucide-react';
+import { Mail, Phone, MapPin, Edit2, Trash2, FileText, Shuffle } from 'lucide-react';
 
 interface SponsorListProps {
   sponsors: Sponsor[];
   onEdit: (sponsor: Sponsor) => void;
   onDelete: (id: string) => void;
+  onAssignTeam: (sponsorId: string) => void;
 }
 
 const statusColors: Record<SponsorStatus, { bg: string; text: string; border: string }> = {
@@ -27,6 +28,11 @@ const statusColors: Record<SponsorStatus, { bg: string; text: string; border: st
     bg: 'bg-amber-50',
     text: 'text-amber-700',
     border: 'border-amber-200'
+  },
+  'Not Interested': {
+    bg: 'bg-red-50',
+    text: 'text-red-700',
+    border: 'border-red-200'
   }
 };
 
@@ -39,7 +45,7 @@ function StatusBadge({ status }: { status: SponsorStatus }) {
   );
 }
 
-export function SponsorList({ sponsors, onEdit, onDelete }: SponsorListProps) {
+export function SponsorList({ sponsors, onEdit, onDelete, onAssignTeam }: SponsorListProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
       <div className="overflow-x-auto">
@@ -53,16 +59,16 @@ export function SponsorList({ sponsors, onEdit, onDelete }: SponsorListProps) {
                 Sector
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+                Assigned Team
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+                Team Members
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Contact
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                Location
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                Notes
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Actions
@@ -87,6 +93,18 @@ export function SponsorList({ sponsors, onEdit, onDelete }: SponsorListProps) {
                   </span>
                 </td>
                 <td className="px-6 py-4">
+                  <span className={`text-sm font-medium ${sponsor.assignedTeam ? 'text-blue-600' : 'text-slate-400'}`}>
+                    {sponsor.assignedTeam && typeof sponsor.assignedTeam !== 'string' ? sponsor.assignedTeam.name : 'Unassigned'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 max-w-xs truncate">
+                  <span className="text-sm text-slate-600" title={sponsor.assignedTeam && typeof sponsor.assignedTeam !== 'string' ? sponsor.assignedTeam.members.join(', ') : ''}>
+                    {sponsor.assignedTeam && typeof sponsor.assignedTeam !== 'string' && sponsor.assignedTeam.members.length > 0
+                      ? sponsor.assignedTeam.members.join(', ')
+                      : '-'}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
                   <div className="flex flex-col">
                     <span className="text-sm text-slate-900">{sponsor.contactPerson}</span>
                     <div className="flex items-center gap-1 mt-1">
@@ -96,26 +114,19 @@ export function SponsorList({ sponsors, onEdit, onDelete }: SponsorListProps) {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm text-slate-700">{sponsor.location}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
                   <StatusBadge status={sponsor.status} />
                 </td>
                 <td className="px-6 py-4">
-                  {sponsor.notes ? (
-                    <div className="flex items-start gap-1 text-xs text-slate-600 max-w-[200px]">
-                      <FileText className="w-3 h-3 text-slate-400 mt-0.5 flex-shrink-0" />
-                      <span className="line-clamp-2">{sponsor.notes}</span>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-400">-</span>
-                  )}
-                </td>
-                <td className="px-6 py-4">
                   <div className="flex items-center justify-end gap-2">
+                    {!sponsor.assignedTeam && (
+                      <button
+                        onClick={() => onAssignTeam(sponsor.id)}
+                        className="p-2 text-slate-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                        title="Assign Random Team"
+                      >
+                        <Shuffle className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => onEdit(sponsor)}
                       className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
