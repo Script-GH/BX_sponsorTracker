@@ -21,6 +21,23 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('Connected to MongoDB'))
     .catch(err => console.error('MongoDB connection error:', err));
 
+// Team Schema
+const teamSchema = new mongoose.Schema({
+    name: String,
+    members: [String],
+});
+
+teamSchema.set('toJSON', {
+    virtuals: true,
+    versionKey: false,
+    transform: function (doc, ret) {
+        ret.id = ret._id;
+        delete ret._id;
+    }
+});
+
+const Team = mongoose.model('Team', teamSchema);
+
 // Sponsor Schema
 const sponsorSchema = new mongoose.Schema({
     companyName: String,
@@ -32,8 +49,12 @@ const sponsorSchema = new mongoose.Schema({
     notes: String,
     status: {
         type: String,
-        enum: ['In Progress', 'Contacted', 'Completed', 'Follow-up Required'],
+        enum: ['In Progress', 'Contacted', 'Completed', 'Follow-up Required', 'Not Interested'],
         default: 'In Progress'
+    },
+    assignedTeam: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Team'
     }
 });
 
@@ -52,7 +73,7 @@ const Sponsor = mongoose.model('Sponsor', sponsorSchema);
 // Routes
 app.get('/api/sponsors', async (req, res) => {
     try {
-        const sponsors = await Sponsor.find();
+        const sponsors = await Sponsor.find().populate('assignedTeam');
         res.json(sponsors);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -75,7 +96,7 @@ app.put('/api/sponsors/:id', async (req, res) => {
             req.params.id,
             req.body,
             { new: true }
-        );
+        ).populate('assignedTeam');
         if (!updatedSponsor) return res.status(404).json({ message: "Sponsor not found" });
         res.json(updatedSponsor);
     } catch (error) {
@@ -89,6 +110,28 @@ app.delete('/api/sponsors/:id', async (req, res) => {
         res.json({ message: "Sponsor deleted" });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+});
+
+// Team Routes
+app.get('/api/teams', async (req, res) => {
+    try {
+        const teams = await Team.find();
+        res.json(teams);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.post('/api/teams', async (req, res) => {
+    try {
+        console.log('Received team data:', req.body);
+        const newTeam = new Team(req.body);
+        const savedTeam = await newTeam.save();
+        res.status(201).json(savedTeam);
+    } catch (error) {
+        console.error('Error saving team:', error);
+        res.status(400).json({ message: error.message });
     }
 });
 

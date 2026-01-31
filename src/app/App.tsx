@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { SponsorList } from '@/app/components/sponsor-list';
 import { SponsorFormModal } from '@/app/components/sponsor-form-modal';
+import { TeamManager, Team } from '@/app/components/team-manager';
 import { Search, Plus } from 'lucide-react';
 
-export type SponsorStatus = 'In Progress' | 'Contacted' | 'Completed' | 'Follow-up Required';
+export type SponsorStatus = 'In Progress' | 'Contacted' | 'Completed' | 'Follow-up Required' | 'Not Interested';
 
 export interface Sponsor {
   id: string;
@@ -15,22 +16,52 @@ export interface Sponsor {
   location: string;
   notes: string;
   status: SponsorStatus;
+  assignedTeam?: Team | string;
 }
 
 export default function App() {
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<SponsorStatus | 'All'>('All');
+  const [teamFilter, setTeamFilter] = useState<'All' | 'Unassigned' | string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null);
 
   useEffect(() => {
-    fetch('/api/sponsors')
-      .then(res => res.json())
-      .then(data => setSponsors(data))
-      .catch(err => console.error('Error fetching sponsors:', err));
+    fetchSponsors();
+    fetchTeams();
   }, []);
+
+  const fetchSponsors = () => {
+    fetch('/api/sponsors')
+      .then(res => {
+        if (!res.ok) throw new Error('Network response was not ok');
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSponsors(data);
+        } else {
+          console.error('Received non-array data:', data);
+          setSponsors([]);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching sponsors:', err);
+        setSponsors([]);
+      });
+  };
+
+  const fetchTeams = () => {
+    fetch('/api/teams')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setTeams(data);
+      })
+      .catch(err => console.error('Error fetching teams:', err));
+  };
 
   const handleAddSponsor = async (sponsor: Omit<Sponsor, 'id'>) => {
     try {
@@ -39,13 +70,18 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sponsor),
       });
-      if (!response.ok) throw new Error('Failed to add sponsor');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to add sponsor');
+      }
       const newSponsor = await response.json();
+      // Ensure we don't duplicate (though typically we append)
+      // Re-fetch to accept any population logic or just append
       setSponsors([...sponsors, newSponsor]);
       setIsModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding sponsor:', error);
-      alert('Failed to add sponsor');
+      alert(`Error: ${error.message || 'Failed to add sponsor'}. Make sure the backend is running and connected to MongoDB.`);
     }
   };
 
@@ -81,6 +117,47 @@ export default function App() {
     }
   };
 
+  const handleAddTeam = async (team: Omit<Team, 'id'>) => {
+    try {
+      const response = await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(team),
+      });
+      if (!response.ok) throw new Error('Failed to add team');
+      const newTeam = await response.json();
+      setTeams([...teams, newTeam]);
+    } catch (error) {
+      console.error('Error adding team:', error);
+      alert('Failed to add team');
+    }
+  };
+
+  const handleAssignTeam = async (sponsorId: string) => {
+    if (teams.length === 0) {
+      alert("No teams available. Please add a team to the manager first.");
+      return;
+    }
+
+    const randomTeam = teams[Math.floor(Math.random() * teams.length)];
+
+    try {
+      const response = await fetch(`/api/sponsors/${sponsorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedTeam: randomTeam.id }),
+      });
+
+      if (!response.ok) throw new Error('Failed to assign team');
+
+      const updatedSponsor = await response.json();
+      setSponsors(sponsors.map(s => s.id === sponsorId ? updatedSponsor : s));
+    } catch (error) {
+      console.error('Error assigning team:', error);
+      alert('Failed to assign team');
+    }
+  };
+
   const openEditModal = (sponsor: Sponsor) => {
     setEditingSponsor(sponsor);
     setIsModalOpen(true);
@@ -95,7 +172,17 @@ export default function App() {
     const matchesSearch = sponsor.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       sponsor.contactPerson.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || sponsor.status === statusFilter;
-    return matchesSearch && matchesStatus;
+
+    let matchesTeam = true;
+    if (teamFilter !== 'All') {
+      if (teamFilter === 'Unassigned') {
+        matchesTeam = !sponsor.assignedTeam;
+      } else {
+        matchesTeam = typeof sponsor.assignedTeam !== 'string' && sponsor.assignedTeam?.id === teamFilter;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesTeam;
   });
 
   return (
@@ -121,6 +208,10 @@ export default function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Team Manager Section */}
+        <TeamManager teams={teams} onAddTeam={handleAddTeam} />
+
         {/* Search and Filter */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
@@ -134,6 +225,17 @@ export default function App() {
             />
           </div>
           <select
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          >
+            <option value="All">All Teams</option>
+            <option value="Unassigned">Unassigned</option>
+            {teams.map(team => (
+              <option key={team.id} value={team.id}>{team.name}</option>
+            ))}
+          </select>
+          <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as SponsorStatus | 'All')}
             className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
@@ -143,6 +245,7 @@ export default function App() {
             <option value="Contacted">Contacted</option>
             <option value="Completed">Completed</option>
             <option value="Follow-up Required">Follow-up Required</option>
+            <option value="Not Interested">Not Interested</option>
           </select>
         </div>
 
@@ -151,6 +254,7 @@ export default function App() {
           sponsors={filteredSponsors}
           onEdit={openEditModal}
           onDelete={handleDeleteSponsor}
+          onAssignTeam={handleAssignTeam}
         />
 
         {/* Empty State */}

@@ -188,6 +188,7 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
                 <option value="Contacted">Contacted</option>
                 <option value="Completed">Completed</option>
                 <option value="Follow-up Required">Follow-up Required</option>
+                <option value="Not Interested">Not Interested</option>
               </select>
             </div>
 
