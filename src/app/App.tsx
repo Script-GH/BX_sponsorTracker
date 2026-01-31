@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { SponsorList } from '@/app/components/sponsor-list';
 import { SponsorFormModal } from '@/app/components/sponsor-form-modal';
 import { TeamManager, Team } from '@/app/components/team-manager';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Users } from 'lucide-react';
 
 export type SponsorStatus = 'In Progress' | 'Contacted' | 'Completed' | 'Follow-up Required' | 'Not Interested';
 
@@ -133,6 +133,40 @@ export default function App() {
     }
   };
 
+
+  const handleEditTeam = async (team: Team) => {
+    try {
+      const response = await fetch(`/api/teams/${team.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(team),
+      });
+      if (!response.ok) throw new Error('Failed to update team');
+      const updatedTeam = await response.json();
+      setTeams(teams.map(t => t.id === team.id ? updatedTeam : t));
+    } catch (error) {
+      console.error('Error updating team:', error);
+      alert('Failed to update team');
+    }
+  };
+
+  const handleDeleteTeam = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this team? Assigned sponsors will be unassigned.')) return;
+    try {
+      const response = await fetch(`/api/teams/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete team');
+      setTeams(teams.filter(t => t.id !== id));
+      // Also update local sponsors state to reflect unassignment if needed, 
+      // but simpler to just refetch sponsors as the backend handles the unassignment logic
+      fetchSponsors();
+    } catch (error) {
+      console.error('Error deleting team:', error);
+      alert('Failed to delete team');
+    }
+  };
+
   const handleAssignTeam = async (sponsorId: string) => {
     if (teams.length === 0) {
       alert("No teams available. Please add a team to the manager first.");
@@ -185,6 +219,28 @@ export default function App() {
     return matchesSearch && matchesStatus && matchesTeam;
   });
 
+
+  const handleBulkAssign = async () => {
+    if (teams.length === 0) {
+      alert("No teams available.");
+      return;
+    }
+
+    if (!confirm('Are you sure you want to random assign teams to all unassigned sponsors?')) return;
+
+    try {
+      const response = await fetch('/api/sponsors/assign-random', {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to bulk assign');
+      const updatedSponsors = await response.json();
+      setSponsors(updatedSponsors);
+    } catch (error) {
+      console.error('Error in bulk assignment:', error);
+      alert('Failed to assign teams randomly');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -195,13 +251,22 @@ export default function App() {
               <h1 className="text-3xl text-slate-900">Event Sponsors</h1>
               <p className="mt-1 text-sm text-slate-600">Manage and track your event sponsorship partnerships</p>
             </div>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Add Sponsor
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleBulkAssign}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Users className="w-5 h-5" />
+                Assign All Randomly
+              </button>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Add Sponsor
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -210,7 +275,12 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Team Manager Section */}
-        <TeamManager teams={teams} onAddTeam={handleAddTeam} />
+        <TeamManager
+          teams={teams}
+          onAddTeam={handleAddTeam}
+          onEditTeam={handleEditTeam}
+          onDeleteTeam={handleDeleteTeam}
+        />
 
         {/* Search and Filter */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4">

@@ -113,6 +113,35 @@ app.delete('/api/sponsors/:id', async (req, res) => {
     }
 });
 
+app.post('/api/sponsors/assign-random', async (req, res) => {
+    try {
+        const teams = await Team.find();
+        if (teams.length === 0) return res.status(400).json({ message: "No teams available" });
+
+        const unassignedSponsors = await Sponsor.find({
+            $or: [
+                { assignedTeam: { $exists: false } },
+                { assignedTeam: null }
+            ]
+        });
+
+        if (unassignedSponsors.length === 0) return res.json(await Sponsor.find().populate('assignedTeam'));
+
+        const updates = unassignedSponsors.map(sponsor => {
+            const randomTeam = teams[Math.floor(Math.random() * teams.length)];
+            sponsor.assignedTeam = randomTeam._id;
+            return sponsor.save();
+        });
+
+        await Promise.all(updates);
+
+        const allSponsors = await Sponsor.find().populate('assignedTeam');
+        res.json(allSponsors);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // Team Routes
 app.get('/api/teams', async (req, res) => {
     try {
@@ -135,6 +164,37 @@ app.post('/api/teams', async (req, res) => {
     }
 });
 
+
+
+app.put('/api/teams/:id', async (req, res) => {
+    try {
+        const updatedTeam = await Team.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true }
+        );
+        if (!updatedTeam) return res.status(404).json({ message: "Team not found" });
+        res.json(updatedTeam);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+});
+
+app.delete('/api/teams/:id', async (req, res) => {
+    try {
+        await Team.findByIdAndDelete(req.params.id);
+
+        // Also update sponsors assigned to this team to have no team
+        await Sponsor.updateMany(
+            { assignedTeam: req.params.id },
+            { $unset: { assignedTeam: "" } }
+        );
+
+        res.json({ message: "Team deleted" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
 // Export for Vercel
 export default app;
