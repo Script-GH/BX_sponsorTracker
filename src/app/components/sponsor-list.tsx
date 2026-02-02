@@ -65,7 +65,7 @@ export function SponsorList({ sponsors, onEdit, onDelete, onAssignTeam }: Sponso
                 Assigned Team
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                Team Members
+                POC
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Contact
