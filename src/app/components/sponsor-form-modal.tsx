@@ -18,7 +18,8 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
     phoneNumber: '',
     location: '',
     notes: '',
-    status: 'In Progress' as SponsorStatus
+    status: 'In Progress' as SponsorStatus,
+    poc: ''
   });
 
   useEffect(() => {
@@ -31,7 +32,8 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
         phoneNumber: sponsor.phoneNumber,
         location: sponsor.location,
         notes: sponsor.notes,
-        status: sponsor.status
+        status: sponsor.status,
+        poc: sponsor.poc || ''
       });
     } else {
       setFormData({
@@ -42,7 +44,8 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
         phoneNumber: '',
         location: '',
         notes: '',
-        status: 'In Progress'
+        status: 'In Progress',
+        poc: ''
       });
     }
   }, [sponsor, isOpen]);
@@ -137,6 +140,21 @@ export function SponsorFormModal({ isOpen, onClose, onSubmit, sponsor }: Sponsor
                 onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="e.g., John Smith"
+              />
+            </div>
+
+            {/* POC */}
+            <div>
+              <label htmlFor="poc" className="block text-sm font-medium text-slate-700 mb-1">
+                POC (Point of Contact)
+              </label>
+              <input
+                type="text"
+                id="poc"
+                value={formData.poc}
+                onChange={(e) => setFormData({ ...formData, poc: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Name of POC"
               />
             </div>
 

@@ -106,10 +106,8 @@ export function SponsorList({ sponsors, onEdit, onDelete, onAssignTeam }: Sponso
                   </span>
                 </td>
                 <td className="px-6 py-4 max-w-xs truncate">
-                  <span className="text-sm text-slate-600" title={sponsor.assignedTeam && typeof sponsor.assignedTeam !== 'string' ? sponsor.assignedTeam.members.join(', ') : ''}>
-                    {sponsor.assignedTeam && typeof sponsor.assignedTeam !== 'string' && sponsor.assignedTeam.members.length > 0
-                      ? sponsor.assignedTeam.members.join(', ')
-                      : '-'}
+                  <span className="text-sm text-slate-600">
+                    {sponsor.poc || '-'}
                   </span>
                 </td>
                 <td className="px-6 py-4">

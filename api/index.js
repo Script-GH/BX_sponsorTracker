@@ -44,6 +44,7 @@ const sponsorSchema = new mongoose.Schema({
     sector: String,
     companyEmail: String,
     contactPerson: String,
+    poc: String,
     phoneNumber: String,
     location: String,
     notes: String,

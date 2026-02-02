@@ -12,6 +12,7 @@ export interface Sponsor {
   sector: string;
   companyEmail: string;
   contactPerson: string;
+  poc?: string;
   phoneNumber: string;
   location: string;
   notes: string;
