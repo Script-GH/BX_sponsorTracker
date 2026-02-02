@@ -53,6 +53,9 @@ export function SponsorList({ sponsors, onEdit, onDelete, onAssignTeam }: Sponso
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+                #
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                 Company
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
@@ -76,8 +79,13 @@ export function SponsorList({ sponsors, onEdit, onDelete, onAssignTeam }: Sponso
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {sponsors.map((sponsor) => (
+            {sponsors.map((sponsor, index) => (
               <tr key={sponsor.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-6 py-4">
+                  <span className="text-sm text-slate-500 font-medium">
+                    {index + 1}
+                  </span>
+                </td>
                 <td className="px-6 py-4">
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-slate-900">{sponsor.companyName}</span>
