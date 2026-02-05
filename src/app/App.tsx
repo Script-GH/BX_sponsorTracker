@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SponsorList } from '@/app/components/sponsor-list';
 import { SponsorFormModal } from '@/app/components/sponsor-form-modal';
+import { UploadConfirmationDialog } from '@/app/components/UploadConfirmationDialog';
 import { TeamManager, Team } from '@/app/components/team-manager';
 import { Search, Plus } from 'lucide-react';
 
@@ -29,6 +30,9 @@ export default function App() {
   const [teamFilter, setTeamFilter] = useState<'All' | 'Unassigned' | string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null);
+
+  const [isUploadConfirmOpen, setIsUploadConfirmOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
     fetchSponsors();
@@ -186,6 +190,85 @@ export default function App() {
     return matchesSearch && matchesStatus && matchesTeam;
   });
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setIsUploadConfirmOpen(true);
+    }
+    // Reset input so same file can be selected again if needed
+    e.target.value = '';
+  };
+
+  const handleConfirmImport = async () => {
+    if (!selectedFile) return;
+
+    setIsUploadConfirmOpen(false);
+
+    try {
+      const XLSX = await import('xlsx');
+      const reader = new FileReader();
+
+      reader.onload = async (evt) => {
+        try {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data = XLSX.utils.sheet_to_json(ws);
+
+          const sponsorsToImport: any[] = [];
+
+          for (const row of data as any[]) {
+            const companyName = row['Company Name'] || row['Name'] || row['Company'];
+            if (!companyName) continue;
+
+            sponsorsToImport.push({
+              companyName: companyName,
+              sector: row['Sector'] || row['Industry'] || 'Unknown',
+              companyEmail: row['Email'] || row['Company Email'] || '',
+              contactPerson: row['Contact Person'] || row['Contact'] || '',
+              phoneNumber: row['Phone'] || row['Mobile'] || row['Phone number'] || row['Phone Number'] || '',
+              location: row['Location'] || row['City'] || '',
+              notes: row['Notes'] || '',
+              status: 'In Progress' as SponsorStatus
+            });
+          }
+
+          let addedCount = 0;
+          let skippedCount = 0;
+
+          if (sponsorsToImport.length > 0) {
+            const response = await fetch('/api/sponsors/bulk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(sponsorsToImport),
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              addedCount = result.added;
+              skippedCount = result.skipped;
+            }
+          }
+
+          // Refresh list from backend to ensure consistency
+          await fetchSponsors();
+
+          setSelectedFile(null); // Clear file after success
+
+        } catch (err) {
+          console.error("Error processing excel:", err);
+          alert("Error processing Excel file.");
+        }
+      };
+      reader.readAsBinaryString(selectedFile);
+    } catch (err) {
+      console.error("Error importing xlsx:", err);
+      alert("Failed to load Excel parser.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -196,13 +279,31 @@ export default function App() {
               <h1 className="text-3xl text-slate-900">Event Sponsors</h1>
               <p className="mt-1 text-sm text-slate-600">Manage and track your event sponsorship partnerships</p>
             </div>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Add Sponsor
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Add Sponsor
+              </button>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="excel-upload"
+                />
+                <label
+                  htmlFor="excel-upload"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><path d="M8 13h8" /><path d="M8 17h8" /><path d="M10 9h4" /></svg>
+                  Import Excel
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -272,6 +373,13 @@ export default function App() {
         onClose={closeModal}
         onSubmit={editingSponsor ? handleEditSponsor : handleAddSponsor}
         sponsor={editingSponsor}
+      />
+      <UploadConfirmationDialog
+        isOpen={isUploadConfirmOpen}
+        onClose={() => { setIsUploadConfirmOpen(false); setSelectedFile(null); }}
+        onConfirm={handleConfirmImport}
+        fileName={selectedFile?.name || null}
+        fileSize={selectedFile ? `${(selectedFile.size / 1024).toFixed(1)} KB` : null}
       />
     </div>
   );
