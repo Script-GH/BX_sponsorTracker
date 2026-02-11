@@ -89,3 +89,7 @@ dist-ssr/
 # MongoDB Data
 .mongo-data
 .mongo-log*
+
+# Local Data Files
+server/sponsors.json
+server/teams.json
