@@ -239,7 +239,7 @@ app.post('/api/teams', async (req, res) => {
 
 export default app;
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'production' || process.argv[1] === __filename) {
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });

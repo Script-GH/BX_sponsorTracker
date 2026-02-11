@@ -227,7 +227,7 @@ export default function App() {
               companyName: companyName,
               sector: row['Sector'] || row['Industry'] || 'Unknown',
               companyEmail: row['Email'] || row['Company Email'] || '',
-              contactPerson: row['Contact Person'] || row['Contact'] || '',
+              contactPerson: row['Contact Person'] || row['Contact'] || row['Name'] || row['Full Name'] || row['Name of contact'] || '',
               phoneNumber: row['Phone'] || row['Mobile'] || row['Phone number'] || row['Phone Number'] || '',
               location: row['Location'] || row['City'] || '',
               notes: row['Notes'] || '',
