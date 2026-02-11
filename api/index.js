@@ -62,27 +62,55 @@ const Sponsor = mongoose.model('Sponsor', sponsorSchema);
 // --- Database Connection State ---
 let isMongoConnected = false;
 
-// Connect to MongoDB if URI is present
-if (process.env.MONGODB_URI) {
+const connectDB = async () => {
+    if (!process.env.MONGODB_URI) {
+        console.log('[DB] No MONGODB_URI found. Using local files.');
+        return;
+    }
+    if (mongoose.connection.readyState === 1) {
+        isMongoConnected = true;
+        return;
+    }
+    if (mongoose.connection.readyState === 2) {
+        console.log('[DB] Connection already in progress...');
+        return;
+    }
+
     console.log('[DB] Attempting to connect to MongoDB...');
     const startTime = Date.now();
 
-    mongoose.connect(process.env.MONGODB_URI)
-        .then(() => {
-            console.log(`[DB] Connected to MongoDB in ${Date.now() - startTime}ms`);
-            isMongoConnected = true;
-        })
-        .catch(err => {
-            console.error(`[DB] MongoDB connection error after ${Date.now() - startTime}ms:`, err.message);
-            console.log('[DB] Falling back to local files');
-            isMongoConnected = false;
+    try {
+        await mongoose.connect(process.env.MONGODB_URI, {
+            serverSelectionTimeoutMS: 5000, // Fail fast if no connection after 5s
         });
-} else {
-    console.log('[DB] No MONGODB_URI found. Using local files.');
-}
+        console.log(`[DB] Connected to MongoDB in ${Date.now() - startTime}ms`);
+        isMongoConnected = true;
+    } catch (err) {
+        console.error(`[DB] MongoDB connection error after ${Date.now() - startTime}ms:`, err.message);
+        console.log('[DB] Falling back to local files');
+        isMongoConnected = false;
+    }
+};
+
+// Initial connection
+connectDB();
 
 app.use(cors());
 app.use(express.json());
+
+// Middleware to retry connection if needed
+app.use(async (req, res, next) => {
+    if (!isMongoConnected && process.env.MONGODB_URI) {
+        // Try one more time if disconnected, but don't block too long
+        // Or just let the background retry handle it?
+        // Let's trigger a check without awaiting effectively if we want background
+        // But user says "reload to connect", so maybe await it briefly?
+        // Better: trigger it and let next request pick it up OR await it proper.
+        // Let's await it to fix the "reload multiple times" issue.
+        await connectDB();
+    }
+    next();
+});
 
 // --- Routes (Hybrid) ---
 
@@ -91,6 +119,7 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
         mongoConnected: isMongoConnected,
+        readyState: mongoose.connection.readyState,
         source: isMongoConnected ? 'mongodb' : 'local-files'
     });
 });
