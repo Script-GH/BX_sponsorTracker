@@ -33,6 +33,16 @@ const statusColors: Record<SponsorStatus, { bg: string; text: string; border: st
     bg: 'bg-red-50',
     text: 'text-red-700',
     border: 'border-red-200'
+  },
+  'Cold Mail': {
+    bg: 'bg-cyan-50',
+    text: 'text-cyan-700',
+    border: 'border-cyan-200'
+  },
+  'Cold Call': {
+    bg: 'bg-orange-50',
+    text: 'text-orange-700',
+    border: 'border-orange-200'
   }
 };
 

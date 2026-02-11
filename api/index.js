@@ -53,7 +53,7 @@ const sponsorSchema = new mongoose.Schema({
     phoneNumber: String,
     location: String,
     notes: String,
-    status: { type: String, enum: ['In Progress', 'Contacted', 'Completed', 'Follow-up Required', 'Not Interested'], default: 'In Progress' },
+    status: { type: String, enum: ['In Progress', 'Contacted', 'Completed', 'Follow-up Required', 'Not Interested', 'Cold Mail', 'Cold Call'], default: 'In Progress' },
     assignedTeam: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' }
 });
 sponsorSchema.set('toJSON', { virtuals: true, versionKey: false, transform: (doc, ret) => { ret.id = ret._id; delete ret._id; } });

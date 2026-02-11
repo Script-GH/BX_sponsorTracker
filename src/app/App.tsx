@@ -3,9 +3,10 @@ import { SponsorList } from '@/app/components/sponsor-list';
 import { SponsorFormModal } from '@/app/components/sponsor-form-modal';
 import { UploadConfirmationDialog } from '@/app/components/UploadConfirmationDialog';
 import { TeamManager, Team } from '@/app/components/team-manager';
+import { Skeleton } from '@/app/components/ui/skeleton';
 import { Search, Plus } from 'lucide-react';
 
-export type SponsorStatus = 'In Progress' | 'Contacted' | 'Completed' | 'Follow-up Required' | 'Not Interested';
+export type SponsorStatus = 'In Progress' | 'Contacted' | 'Completed' | 'Follow-up Required' | 'Not Interested' | 'Cold Mail' | 'Cold Call';
 
 export interface Sponsor {
   id: string;
@@ -34,39 +35,50 @@ export default function App() {
   const [isUploadConfirmOpen, setIsUploadConfirmOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
-    fetchSponsors();
-    fetchTeams();
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([fetchSponsors(), fetchTeams()]);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, []);
 
-  const fetchSponsors = () => {
-    fetch('/api/sponsors')
-      .then(res => {
-        if (!res.ok) throw new Error('Network response was not ok');
-        return res.json();
-      })
-      .then(data => {
-        if (Array.isArray(data)) {
-          setSponsors(data);
-        } else {
-          console.error('Received non-array data:', data);
-          setSponsors([]);
-        }
-      })
-      .catch(err => {
-        console.error('Error fetching sponsors:', err);
+  const fetchSponsors = async () => {
+    try {
+      const res = await fetch('/api/sponsors');
+      if (!res.ok) throw new Error('Network response was not ok');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setSponsors(data);
+      } else {
+        console.error('Received non-array data:', data);
         setSponsors([]);
-      });
+      }
+    } catch (err) {
+      console.error('Error fetching sponsors:', err);
+      setSponsors([]);
+    }
   };
 
-  const fetchTeams = () => {
-    fetch('/api/teams')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setTeams(data);
-      })
-      .catch(err => console.error('Error fetching teams:', err));
+  const fetchTeams = async () => {
+    try {
+      const res = await fetch('/api/teams');
+      const data = await res.json();
+      if (Array.isArray(data)) setTeams(data);
+    } catch (err) {
+      console.error('Error fetching teams:', err);
+    }
   };
+
+  // ... (rest of the handlers: handleAddSponsor, handleEditSponsor, handleDeleteSponsor, handleAddTeam, handleAssignTeam, openEditModal, closeModal, filteredSponsors, handleFileSelect, handleConfirmImport) 
 
   const handleAddSponsor = async (sponsor: Omit<Sponsor, 'id'>) => {
     try {
@@ -283,6 +295,7 @@ export default function App() {
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={isLoading}
               >
                 <Plus className="w-5 h-5" />
                 Add Sponsor
@@ -294,10 +307,11 @@ export default function App() {
                   onChange={handleFileSelect}
                   className="hidden"
                   id="excel-upload"
+                  disabled={isLoading}
                 />
                 <label
                   htmlFor="excel-upload"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+                  className={`inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><path d="M8 13h8" /><path d="M8 17h8" /><path d="M10 9h4" /></svg>
                   Import Excel
@@ -310,60 +324,97 @@ export default function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {isLoading ? (
+          <div className="space-y-8">
+            {/* Skeleton for Team Manager */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-8 w-32" />
+                <Skeleton className="h-8 w-24" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            </div>
 
-        {/* Team Manager Section */}
-        <TeamManager teams={teams} onAddTeam={handleAddTeam} />
+            {/* Skeleton for Search/Filter */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Skeleton className="h-10 flex-1" />
+              <Skeleton className="h-10 w-32" />
+              <Skeleton className="h-10 w-32" />
+            </div>
 
-        {/* Search and Filter */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by company or contact name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            {/* Skeleton for List */}
+            <div className="space-y-4">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Team Manager Section */}
+            <TeamManager teams={teams} onAddTeam={handleAddTeam} />
+
+            {/* Search and Filter */}
+            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by company or contact name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <select
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
+                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              >
+                <option value="All">All Teams</option>
+                <option value="Unassigned">Unassigned</option>
+                {teams.map(team => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as SponsorStatus | 'All')}
+                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              >
+                <option value="All">All Statuses</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Contacted">Contacted</option>
+                <option value="Completed">Completed</option>
+                <option value="Follow-up Required">Follow-up Required</option>
+                <option value="Not Interested">Not Interested</option>
+                <option value="Cold Mail">Cold Mail</option>
+                <option value="Cold Call">Cold Call</option>
+              </select>
+            </div>
+
+            {/* Sponsors List */}
+            <SponsorList
+              sponsors={filteredSponsors}
+              onEdit={openEditModal}
+              onDelete={handleDeleteSponsor}
+              onAssignTeam={handleAssignTeam}
             />
-          </div>
-          <select
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value)}
-            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-          >
-            <option value="All">All Teams</option>
-            <option value="Unassigned">Unassigned</option>
-            {teams.map(team => (
-              <option key={team.id} value={team.id}>{team.name}</option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as SponsorStatus | 'All')}
-            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-          >
-            <option value="All">All Statuses</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Contacted">Contacted</option>
-            <option value="Completed">Completed</option>
-            <option value="Follow-up Required">Follow-up Required</option>
-            <option value="Not Interested">Not Interested</option>
-          </select>
-        </div>
 
-        {/* Sponsors List */}
-        <SponsorList
-          sponsors={filteredSponsors}
-          onEdit={openEditModal}
-          onDelete={handleDeleteSponsor}
-          onAssignTeam={handleAssignTeam}
-        />
-
-        {/* Empty State */}
-        {filteredSponsors.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-slate-500">No sponsors found matching your criteria</p>
-          </div>
+            {/* Empty State */}
+            {filteredSponsors.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-slate-500">No sponsors found matching your criteria</p>
+              </div>
+            )}
+          </>
         )}
       </main>
 
