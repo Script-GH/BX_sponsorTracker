@@ -64,17 +64,21 @@ let isMongoConnected = false;
 
 // Connect to MongoDB if URI is present
 if (process.env.MONGODB_URI) {
+    console.log('[DB] Attempting to connect to MongoDB...');
+    const startTime = Date.now();
+
     mongoose.connect(process.env.MONGODB_URI)
         .then(() => {
-            console.log('Connected to MongoDB');
+            console.log(`[DB] Connected to MongoDB in ${Date.now() - startTime}ms`);
             isMongoConnected = true;
         })
         .catch(err => {
-            console.error('MongoDB connection error (falling back to local files):', err.message);
+            console.error(`[DB] MongoDB connection error after ${Date.now() - startTime}ms:`, err.message);
+            console.log('[DB] Falling back to local files');
             isMongoConnected = false;
         });
 } else {
-    console.log('No MONGODB_URI found (using local files).');
+    console.log('[DB] No MONGODB_URI found. Using local files.');
 }
 
 app.use(cors());
@@ -82,13 +86,30 @@ app.use(express.json());
 
 // --- Routes (Hybrid) ---
 
+// Health Check
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        mongoConnected: isMongoConnected,
+        source: isMongoConnected ? 'mongodb' : 'local-files'
+    });
+});
+
 // GET /api/sponsors
 app.get('/api/sponsors', async (req, res) => {
+    const start = Date.now();
+    console.log(`[GET /api/sponsors] Request received`);
+
+    // Set custom header to inform client about data source
+    res.set('X-Database-Connected', isMongoConnected ? 'true' : 'false');
+
     try {
         if (isMongoConnected) {
             const sponsors = await Sponsor.find().populate('assignedTeam');
+            console.log(`[GET /api/sponsors] Served ${sponsors.length} sponsors from MongoDB in ${Date.now() - start}ms`);
             res.json(sponsors);
         } else {
+            console.log(`[GET /api/sponsors] Serving from local files (DB disconnected)`);
             const sponsors = readData(SPONSORS_FILE);
             const teams = readData(TEAMS_FILE);
             const populated = sponsors.map(s => {
@@ -98,9 +119,11 @@ app.get('/api/sponsors', async (req, res) => {
                 }
                 return s;
             });
+            console.log(`[GET /api/sponsors] Served ${populated.length} sponsors from local files in ${Date.now() - start}ms`);
             res.json(populated);
         }
     } catch (error) {
+        console.error(`[GET /api/sponsors] Error:`, error);
         res.status(500).json({ message: error.message });
     }
 });

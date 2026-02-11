@@ -36,12 +36,15 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isDbConnected, setIsDbConnected] = useState<boolean>(true); // Default to true, update on fetch
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
         await Promise.all([fetchSponsors(), fetchTeams()]);
+        // Also check health explicitly if needed, but headers should suffice
+        fetchHealth();
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
@@ -51,9 +54,27 @@ export default function App() {
     loadData();
   }, []);
 
+  const fetchHealth = async () => {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      setIsDbConnected(data.mongoConnected);
+    } catch (e) {
+      console.error("Health check failed", e);
+      setIsDbConnected(false);
+    }
+  }
+
   const fetchSponsors = async () => {
     try {
       const res = await fetch('/api/sponsors');
+
+      // Check for DB connection header
+      const dbHeader = res.headers.get('X-Database-Connected');
+      if (dbHeader) {
+        setIsDbConnected(dbHeader === 'true');
+      }
+
       if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -289,7 +310,26 @@ export default function App() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl text-slate-900">Event Sponsors</h1>
-              <p className="mt-1 text-sm text-slate-600">Manage and track your event sponsorship partnerships</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-sm text-slate-600">Manage and track your event sponsorship partnerships</p>
+                {!isDbConnected && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    </span>
+                    Offline Mode (Using Local Data)
+                  </span>
+                )}
+                {isDbConnected && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                    <span className="relative flex h-2 w-2">
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    Online
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -422,7 +462,13 @@ export default function App() {
       <SponsorFormModal
         isOpen={isModalOpen}
         onClose={closeModal}
-        onSubmit={editingSponsor ? handleEditSponsor : handleAddSponsor}
+        onSubmit={(data) => {
+          if ('id' in data) {
+            handleEditSponsor(data as Sponsor);
+          } else {
+            handleAddSponsor(data);
+          }
+        }}
         sponsor={editingSponsor}
       />
       <UploadConfirmationDialog
