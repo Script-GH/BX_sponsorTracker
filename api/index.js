@@ -45,16 +45,21 @@ teamSchema.set('toJSON', { virtuals: true, versionKey: false, transform: (doc, r
 const Team = mongoose.model('Team', teamSchema);
 
 const sponsorSchema = new mongoose.Schema({
-    companyName: String,
-    sector: String,
+    companyName: { type: String, index: true },
+    sector: { type: String, index: true },
     companyEmail: String,
     contactPerson: String,
     poc: String,
     phoneNumber: String,
     location: String,
     notes: String,
-    status: { type: String, enum: ['In Progress', 'Contacted', 'Completed', 'Follow-up Required', 'Not Interested', 'Cold Mail', 'Cold Call'], default: 'In Progress' },
-    assignedTeam: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' }
+    status: {
+        type: String,
+        enum: ['In Progress', 'Contacted', 'Completed', 'Follow-up Required', 'Not Interested', 'Cold Mail', 'Cold Call'],
+        default: 'In Progress',
+        index: true
+    },
+    assignedTeam: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', index: true }
 });
 sponsorSchema.set('toJSON', { virtuals: true, versionKey: false, transform: (doc, ret) => { ret.id = ret._id; delete ret._id; } });
 const Sponsor = mongoose.model('Sponsor', sponsorSchema);
@@ -127,29 +132,128 @@ app.get('/api/health', (req, res) => {
 // GET /api/sponsors
 app.get('/api/sponsors', async (req, res) => {
     const start = Date.now();
-    console.log(`[GET /api/sponsors] Request received`);
+    console.log(`[GET /api/sponsors] Request received`, req.query);
+
+    // Pagination & Filtering Params
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const search = req.query.search || '';
+    const status = req.query.status || 'All';
+    const team = req.query.team || 'All';
 
     // Set custom header to inform client about data source
     res.set('X-Database-Connected', isMongoConnected ? 'true' : 'false');
 
     try {
         if (isMongoConnected) {
-            const sponsors = await Sponsor.find().populate('assignedTeam');
-            console.log(`[GET /api/sponsors] Served ${sponsors.length} sponsors from MongoDB in ${Date.now() - start}ms`);
-            res.json(sponsors);
+            // Build Query
+            const query = {};
+            if (search) {
+                query.$or = [
+                    { companyName: { $regex: search, $options: 'i' } },
+                    { contactPerson: { $regex: search, $options: 'i' } }
+                ];
+            }
+            if (status !== 'All') {
+                query.status = status;
+            }
+            if (team !== 'All') {
+                if (team === 'Unassigned') {
+                    query.assignedTeam = null;
+                } else {
+                    query.assignedTeam = team;
+                }
+            }
+
+            // Excecute Query
+            const totalSponsors = await Sponsor.countDocuments(query);
+            const totalPages = Math.ceil(totalSponsors / limit);
+
+            const sponsors = await Sponsor.find(query)
+                .sort({ _id: -1 }) // Sort by newest first
+                .skip(skip)
+                .limit(limit)
+                .populate('assignedTeam');
+
+            console.log(`[GET /api/sponsors] Served page ${page} (${sponsors.length} items) from MongoDB in ${Date.now() - start}ms`);
+
+            res.json({
+                sponsors,
+                pagination: {
+                    total: totalSponsors,
+                    page,
+                    pages: totalPages,
+                    limit
+                }
+            });
         } else {
             console.log(`[GET /api/sponsors] Serving from local files (DB disconnected)`);
-            const sponsors = readData(SPONSORS_FILE);
+            let sponsors = readData(SPONSORS_FILE);
             const teams = readData(TEAMS_FILE);
-            const populated = sponsors.map(s => {
+
+            // Populate Check (for team filter consistency)
+            // Ideally we filter first, then paginate, then populate? 
+            // Or populate first? Populating first is easier for 'team' object access if needed, 
+            // but for 'Unassigned' check we just need the ID.
+
+            // 1. Filter
+            let filtered = sponsors.filter(s => {
+                // Search
+                const matchesSearch = !search ||
+                    (s.companyName && s.companyName.toLowerCase().includes(search.toLowerCase())) ||
+                    (s.contactPerson && s.contactPerson.toLowerCase().includes(search.toLowerCase()));
+
+                // Status
+                const matchesStatus = status === 'All' || s.status === status;
+
+                // Team
+                let matchesTeam = true;
+                if (team !== 'All') {
+                    if (team === 'Unassigned') {
+                        matchesTeam = !s.assignedTeam;
+                    } else {
+                        // assignedTeam might be an ID string in local file
+                        matchesTeam = s.assignedTeam === team;
+                    }
+                }
+
+                return matchesSearch && matchesStatus && matchesTeam;
+            });
+
+            // 2. Sort (Newest first)
+            // Local files might strictly be chronological push, so reverse?
+            // If they have IDs that are timestamps like we make them:
+            // const newSponsor = { id: Date.now()... }
+            // We can sort by ID or just reverse.
+            filtered.reverse();
+
+            // 3. Paginate
+            const totalSponsors = filtered.length;
+            const totalPages = Math.ceil(totalSponsors / limit);
+            const paginated = filtered.slice(skip, skip + limit);
+
+            // 4. Populate
+            const populated = paginated.map(s => {
                 if (s.assignedTeam) {
-                    const team = teams.find(t => t.id === s.assignedTeam);
-                    return { ...s, assignedTeam: team || s.assignedTeam };
+                    const teamObj = teams.find(t => t.id === s.assignedTeam);
+                    return { ...s, assignedTeam: teamObj || s.assignedTeam };
                 }
                 return s;
             });
-            console.log(`[GET /api/sponsors] Served ${populated.length} sponsors from local files in ${Date.now() - start}ms`);
-            res.json(populated);
+
+            console.log(`[GET /api/sponsors] Served page ${page} from local files in ${Date.now() - start}ms`);
+
+            res.json({
+                sponsors: populated,
+                pagination: {
+                    total: totalSponsors,
+                    page,
+                    pages: totalPages,
+                    limit
+                }
+            });
         }
     } catch (error) {
         console.error(`[GET /api/sponsors] Error:`, error);
