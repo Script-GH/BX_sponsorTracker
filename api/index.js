@@ -6,6 +6,9 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+// --- Database Connection State ---
+global.isMongoConnected = false;
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,54 +68,62 @@ sponsorSchema.set('toJSON', { virtuals: true, versionKey: false, transform: (doc
 const Sponsor = mongoose.model('Sponsor', sponsorSchema);
 
 // --- Database Connection State ---
-let isMongoConnected = false;
+let cached = global.mongoose;
 
-const connectDB = async () => {
-    if (!process.env.MONGODB_URI) {
-        console.log('[DB] No MONGODB_URI found. Using local files.');
-        return;
-    }
-    if (mongoose.connection.readyState === 1) {
-        isMongoConnected = true;
-        return;
-    }
-    if (mongoose.connection.readyState === 2) {
-        console.log('[DB] Connection already in progress...');
-        return;
+if (!cached) {
+    cached = global.mongoose = { conn: null, promise: null };
+}
+
+async function connectDB() {
+    if (cached.conn) {
+        return cached.conn;
     }
 
-    console.log('[DB] Attempting to connect to MongoDB...');
-    const startTime = Date.now();
+    if (!cached.promise) {
+        const checkEnv = () => {
+            if (!process.env.MONGODB_URI) {
+                console.error('[DB] No MONGODB_URI found in environment variables.');
+                throw new Error('MONGODB_URI is missing');
+            }
+        }
+        checkEnv();
+
+        const opts = {
+            bufferCommands: false,
+            serverSelectionTimeoutMS: 5000,
+        };
+
+        console.log('[DB] Connecting to MongoDB...');
+        cached.promise = mongoose.connect(process.env.MONGODB_URI, opts).then((mongoose) => {
+            console.log('[DB] New connection established');
+            return mongoose;
+        });
+    }
 
     try {
-        await mongoose.connect(process.env.MONGODB_URI, {
-            serverSelectionTimeoutMS: 5000, // Fail fast if no connection after 5s
-        });
-        console.log(`[DB] Connected to MongoDB in ${Date.now() - startTime}ms`);
-        isMongoConnected = true;
-    } catch (err) {
-        console.error(`[DB] MongoDB connection error after ${Date.now() - startTime}ms:`, err.message);
-        console.log('[DB] Falling back to local files');
-        isMongoConnected = false;
+        cached.conn = await cached.promise;
+    } catch (e) {
+        cached.promise = null;
+        console.error('[DB] Connection error:', e);
+        throw e;
     }
-};
 
-// Initial connection
-connectDB();
+    return cached.conn;
+}
 
-app.use(cors());
-app.use(express.json());
-
-// Middleware to retry connection if needed
+// Middleware to ensure DB connection
 app.use(async (req, res, next) => {
-    if (!isMongoConnected && process.env.MONGODB_URI) {
-        // Try one more time if disconnected, but don't block too long
-        // Or just let the background retry handle it?
-        // Let's trigger a check without awaiting effectively if we want background
-        // But user says "reload to connect", so maybe await it briefly?
-        // Better: trigger it and let next request pick it up OR await it proper.
-        // Let's await it to fix the "reload multiple times" issue.
-        await connectDB();
+    // Skip for health check if we want it to report status without blocking
+    if (req.path === '/api/health') return next();
+
+    if (process.env.MONGODB_URI) {
+        try {
+            await connectDB();
+            global.isMongoConnected = true;
+        } catch (e) {
+            console.error('[DB] Failed to connect in middleware:', e.message);
+            global.isMongoConnected = false;
+        }
     }
     next();
 });
@@ -123,9 +134,9 @@ app.use(async (req, res, next) => {
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
-        mongoConnected: isMongoConnected,
+        mongoConnected: global.isMongoConnected,
         readyState: mongoose.connection.readyState,
-        source: isMongoConnected ? 'mongodb' : 'local-files'
+        source: global.isMongoConnected ? 'mongodb' : 'local-files'
     });
 });
 
@@ -144,10 +155,10 @@ app.get('/api/sponsors', async (req, res) => {
     const team = req.query.team || 'All';
 
     // Set custom header to inform client about data source
-    res.set('X-Database-Connected', isMongoConnected ? 'true' : 'false');
+    res.set('X-Database-Connected', global.isMongoConnected ? 'true' : 'false');
 
     try {
-        if (isMongoConnected) {
+        if (global.isMongoConnected) {
             // Build Query
             const query = {};
             if (search) {
@@ -264,7 +275,7 @@ app.get('/api/sponsors', async (req, res) => {
 // POST /api/sponsors
 app.post('/api/sponsors', async (req, res) => {
     try {
-        if (isMongoConnected) {
+        if (global.isMongoConnected) {
             const newSponsor = new Sponsor(req.body);
             const savedSponsor = await newSponsor.save();
             res.status(201).json(savedSponsor);
@@ -285,7 +296,7 @@ app.post('/api/sponsors/bulk', async (req, res) => {
     try {
         if (!Array.isArray(req.body)) return res.status(400).json({ message: "Input must be an array" });
 
-        if (isMongoConnected) {
+        if (global.isMongoConnected) {
             // MongoDB Bulk Insert
             const savedSponsors = await Sponsor.insertMany(req.body);
             res.status(200).json({
@@ -317,7 +328,7 @@ app.post('/api/sponsors/bulk', async (req, res) => {
 // PUT /api/sponsors/:id
 app.put('/api/sponsors/:id', async (req, res) => {
     try {
-        if (isMongoConnected) {
+        if (global.isMongoConnected) {
             const updatedSponsor = await Sponsor.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('assignedTeam');
             if (!updatedSponsor) return res.status(404).json({ message: "Sponsor not found" });
             res.json(updatedSponsor);
@@ -344,7 +355,7 @@ app.put('/api/sponsors/:id', async (req, res) => {
 // DELETE /api/sponsors/:id
 app.delete('/api/sponsors/:id', async (req, res) => {
     try {
-        if (isMongoConnected) {
+        if (global.isMongoConnected) {
             await Sponsor.findByIdAndDelete(req.params.id);
             res.json({ message: "Sponsor deleted" });
         } else {
@@ -363,7 +374,7 @@ app.delete('/api/sponsors/:id', async (req, res) => {
 // GET /api/teams
 app.get('/api/teams', async (req, res) => {
     try {
-        if (isMongoConnected) {
+        if (global.isMongoConnected) {
             const teams = await Team.find();
             res.json(teams);
         } else {
@@ -377,7 +388,7 @@ app.get('/api/teams', async (req, res) => {
 // POST /api/teams
 app.post('/api/teams', async (req, res) => {
     try {
-        if (isMongoConnected) {
+        if (global.isMongoConnected) {
             const newTeam = new Team(req.body);
             const savedTeam = await newTeam.save();
             res.status(201).json(savedTeam);
