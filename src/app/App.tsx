@@ -91,15 +91,20 @@ export default function App() {
     }
   }
 
-  const fetchSponsors = async () => {
+  const fetchSponsors = async (overrides?: { page?: number, search?: string, status?: string, team?: string }) => {
     try {
-      // Build Query Params
+      // Use overrides if provided, otherwise use current state
+      const page = overrides?.page !== undefined ? overrides.page : currentPage;
+      const search = overrides?.search !== undefined ? overrides.search : debouncedSearch;
+      const status = overrides?.status !== undefined ? overrides.status : statusFilter;
+      const team = overrides?.team !== undefined ? overrides.team : teamFilter;
+
       const params = new URLSearchParams({
-        page: currentPage.toString(),
+        page: page.toString(),
         limit: itemsPerPage.toString(),
-        search: debouncedSearch,
-        status: statusFilter,
-        team: teamFilter
+        search: search,
+        status: status,
+        team: team
       });
 
       const res = await fetch(`/api/sponsors?${params.toString()}`);
@@ -142,8 +147,6 @@ export default function App() {
     }
   };
 
-  // ... (rest of the handlers: handleAddSponsor, handleEditSponsor, handleDeleteSponsor, handleAddTeam, handleAssignTeam, openEditModal, closeModal, filteredSponsors, handleFileSelect, handleConfirmImport) 
-
   const handleAddSponsor = async (sponsor: Omit<Sponsor, 'id'>) => {
     try {
       const response = await fetch('/api/sponsors', {
@@ -157,10 +160,14 @@ export default function App() {
       }
       await response.json();
 
-      // Reset to first page to see the new sponsor (sorted by newest)
+      // Clear filters and reset to page 1 to ensure the new sponsor is visible
+      setSearchQuery('');
+      setStatusFilter('All');
+      setTeamFilter('All');
       setCurrentPage(1);
-      // Fetch latest data to update list and counts
-      await fetchSponsors();
+
+      // Explicitly fetch with cleaned parameters to avoid race conditions with state updates
+      await fetchSponsors({ page: 1, search: '', status: 'All', team: 'All' });
 
       setIsModalOpen(false);
     } catch (error: any) {
@@ -176,7 +183,6 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sponsor),
       });
-      if (!response.ok) throw new Error('Failed to update sponsor');
       if (!response.ok) throw new Error('Failed to update sponsor');
       await response.json();
 
@@ -342,9 +348,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50" >
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      < header className="bg-white border-b border-slate-200" >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
@@ -402,172 +408,174 @@ export default function App() {
             </div>
           </div>
         </div>
-      </header>
+      </header >
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {isLoading ? (
-          <div className="space-y-8">
-            {/* Skeleton for Team Manager */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <Skeleton className="h-8 w-32" />
-                <Skeleton className="h-8 w-24" />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-            </div>
-
-            {/* Skeleton for Search/Filter */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Skeleton className="h-10 flex-1" />
-              <Skeleton className="h-10 w-32" />
-              <Skeleton className="h-10 w-32" />
-            </div>
-
-            {/* Skeleton for List */}
-            <div className="space-y-4">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Team Manager Section */}
-            <TeamManager teams={teams} onAddTeam={handleAddTeam} />
-
-            {/* Search and Filter */}
-            <div className="mb-6 flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search by company or contact name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <select
-                value={teamFilter}
-                onChange={(e) => setTeamFilter(e.target.value)}
-                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="All">All Teams</option>
-                <option value="Unassigned">Unassigned</option>
-                {teams.map(team => (
-                  <option key={team.id} value={team.id}>{team.name}</option>
-                ))}
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as SponsorStatus | 'All')}
-                className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="All">All Statuses</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Contacted">Contacted</option>
-                <option value="Completed">Completed</option>
-                <option value="Follow-up Required">Follow-up Required</option>
-                <option value="Not Interested">Not Interested</option>
-                <option value="Cold Mail">Cold Mail</option>
-                <option value="Cold Call">Cold Call</option>
-              </select>
-            </div>
-
-            {/* Sponsors List */}
-            <SponsorList
-              sponsors={sponsors}
-              onEdit={openEditModal}
-              onDelete={handleDeleteSponsor}
-              onAssignTeam={handleAssignTeam}
-            />
-
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3 sm:px-6 mt-4 rounded-lg">
-                <div className="flex flex-1 justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
+      < main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" >
+        {
+          isLoading ? (
+            <div className="space-y-8" >
+              {/* Skeleton for Team Manager */}
+              < div className="space-y-4" >
+                <div className="flex justify-between items-center">
+                  <Skeleton className="h-8 w-32" />
+                  <Skeleton className="h-8 w-24" />
                 </div>
-                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-slate-700">
-                        Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
-                      </p>
-                      <select
-                        value={currentPage}
-                        onChange={(e) => setCurrentPage(Number(e.target.value))}
-                        className="ml-2 block w-20 rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                      >
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                          <option key={page} value={page}>
-                            {page}
-                          </option>
-                        ))}
-                      </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              </div>
+
+              {/* Skeleton for Search/Filter */}
+              < div className="flex flex-col sm:flex-row gap-4" >
+                <Skeleton className="h-10 flex-1" />
+                <Skeleton className="h-10 w-32" />
+                <Skeleton className="h-10 w-32" />
+              </div >
+
+              {/* Skeleton for List */}
+              < div className="space-y-4" >
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div >
+            </div >
+          ) : (
+            <>
+              {/* Team Manager Section */}
+              <TeamManager teams={teams} onAddTeam={handleAddTeam} />
+
+              {/* Search and Filter */}
+              <div className="mb-6 flex flex-col sm:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by company or contact name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <select
+                  value={teamFilter}
+                  onChange={(e) => setTeamFilter(e.target.value)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  <option value="All">All Teams</option>
+                  <option value="Unassigned">Unassigned</option>
+                  {teams.map(team => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as SponsorStatus | 'All')}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Contacted">Contacted</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Follow-up Required">Follow-up Required</option>
+                  <option value="Not Interested">Not Interested</option>
+                  <option value="Cold Mail">Cold Mail</option>
+                  <option value="Cold Call">Cold Call</option>
+                </select>
+              </div>
+
+              {/* Sponsors List */}
+              <SponsorList
+                sponsors={sponsors}
+                onEdit={openEditModal}
+                onDelete={handleDeleteSponsor}
+                onAssignTeam={handleAssignTeam}
+              />
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3 sm:px-6 mt-4 rounded-lg">
+                  <div className="flex flex-1 justify-between sm:hidden">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="relative ml-3 inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-slate-700">
+                          Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
+                        </p>
+                        <select
+                          value={currentPage}
+                          onChange={(e) => setCurrentPage(Number(e.target.value))}
+                          className="ml-2 block w-20 rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                        >
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                            <option key={page} value={page}>
+                              {page}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="sr-only">Previous</span>
+                          <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="sr-only">Next</span>
+                          <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </nav>
                     </div>
                   </div>
-                  <div>
-                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="sr-only">Previous</span>
-                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="sr-only">Next</span>
-                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
-                        </svg>
-                      </button>
-                    </nav>
-                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Empty State */}
-            {sponsors.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-slate-500">No sponsors found matching your criteria</p>
-              </div>
-            )}
-          </>
-        )}
-      </main>
+              {/* Empty State */}
+              {sponsors.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-slate-500">No sponsors found matching your criteria</p>
+                </div>
+              )}
+            </>
+          )
+        }
+      </main >
 
       {/* Add/Edit Modal */}
-      <SponsorFormModal
+      < SponsorFormModal
         isOpen={isModalOpen}
         onClose={closeModal}
         onSubmit={(data) => {
@@ -586,6 +594,6 @@ export default function App() {
         fileName={selectedFile?.name || null}
         fileSize={selectedFile ? `${(selectedFile.size / 1024).toFixed(1)} KB` : null}
       />
-    </div>
+    </div >
   );
 }
