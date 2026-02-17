@@ -17,6 +17,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+
 // --- Local Data Files (Fallback) ---
 const SPONSORS_FILE = path.join(__dirname, '../server/sponsors.json');
 const TEAMS_FILE = path.join(__dirname, '../server/teams.json');
@@ -48,13 +52,13 @@ teamSchema.set('toJSON', { virtuals: true, versionKey: false, transform: (doc, r
 const Team = mongoose.model('Team', teamSchema);
 
 const sponsorSchema = new mongoose.Schema({
-    companyName: { type: String, index: true },
+    companyName: { type: String, required: true, index: true },
     sector: { type: String, index: true },
-    companyEmail: String,
-    contactPerson: String,
+    companyEmail: { type: String, required: true },
+    contactPerson: { type: String, required: true },
     poc: String,
-    phoneNumber: String,
-    location: String,
+    phoneNumber: { type: String, required: true },
+    location: { type: String, required: true },
     notes: String,
     status: {
         type: String,
