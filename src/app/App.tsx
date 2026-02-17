@@ -155,10 +155,13 @@ export default function App() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Failed to add sponsor');
       }
-      const newSponsor = await response.json();
-      // Ensure we don't duplicate (though typically we append)
-      // Re-fetch to accept any population logic or just append
-      setSponsors([...sponsors, newSponsor]);
+      await response.json();
+
+      // Reset to first page to see the new sponsor (sorted by newest)
+      setCurrentPage(1);
+      // Fetch latest data to update list and counts
+      await fetchSponsors();
+
       setIsModalOpen(false);
     } catch (error: any) {
       console.error('Error adding sponsor:', error);
@@ -174,8 +177,12 @@ export default function App() {
         body: JSON.stringify(sponsor),
       });
       if (!response.ok) throw new Error('Failed to update sponsor');
-      const updatedSponsor = await response.json();
-      setSponsors(sponsors.map(s => s.id === sponsor.id ? updatedSponsor : s));
+      if (!response.ok) throw new Error('Failed to update sponsor');
+      await response.json();
+
+      // Fetch latest data to reflect changes
+      await fetchSponsors();
+
       setIsModalOpen(false);
       setEditingSponsor(null);
     } catch (error) {
@@ -191,7 +198,9 @@ export default function App() {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to delete sponsor');
-      setSponsors(sponsors.filter(s => s.id !== id));
+
+      // Fetch latest data to fill the gap
+      await fetchSponsors();
     } catch (error) {
       console.error('Error deleting sponsor:', error);
       alert('Failed to delete sponsor');
@@ -311,6 +320,7 @@ export default function App() {
               const result = await response.json();
               addedCount = result.added;
               skippedCount = result.skipped;
+              alert(`Import successful! Added ${addedCount} sponsors. Skipped ${skippedCount}.`);
             }
           }
 
